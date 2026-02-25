@@ -15,12 +15,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-rsync -a \
-  --exclude '.git' \
-  --exclude 'dist' \
-  --exclude 'docs' \
-  --exclude 'scripts' \
-  "$ROOT_DIR/" "$TMP_DIR/extension/"
+rsync -a "$ROOT_DIR/" "$TMP_DIR/extension/"
+
+rm -rf \
+  "$TMP_DIR/extension/.git" \
+  "$TMP_DIR/extension/.github" \
+  "$TMP_DIR/extension/dist" \
+  "$TMP_DIR/extension/docs" \
+  "$TMP_DIR/extension/scripts" \
+  "$TMP_DIR/extension/site" \
+  "$TMP_DIR/extension/branding" \
+  "$TMP_DIR/extension/img" \
+  "$TMP_DIR/extension/assets/macos"
+
+find "$TMP_DIR/extension" -name '.DS_Store' -delete
+rm -f "$TMP_DIR/extension/.gitignore" "$TMP_DIR/extension/README.md"
 
 (
   cd "$TMP_DIR/extension"
