@@ -4,6 +4,7 @@ const SECOND_LEVEL_DOMAIN_PARTS = new Set(["co", "com", "net", "org", "gov", "ac
 
 const AI_MIN_SCORE = 4;
 const AI_SCORE_MARGIN = 2;
+const BUSY_OPERATION_ERROR = "Another grouping/undo operation is already running for this window.";
 
 const DEFAULT_SETTINGS = {
   trigger: {
@@ -305,10 +306,39 @@ const BUILTIN_AI_CATEGORIES = [
   }
 ];
 
+let cachedSettings = null;
+const parseCache = {
+  guardRulesKey: null,
+  guardRules: [],
+  aiCategoriesKey: "",
+  aiCategories: compileAiCategories(BUILTIN_AI_CATEGORIES)
+};
+const windowOperationLocks = new Set();
+
 chrome.runtime.onInstalled.addListener(async () => {
   const existing = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   const merged = mergeSettings(DEFAULT_SETTINGS, existing);
   await chrome.storage.sync.set(merged);
+  cachedSettings = merged;
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "sync") {
+    return;
+  }
+
+  const next = {};
+  for (const [key, value] of Object.entries(changes || {})) {
+    next[key] = value?.newValue;
+  }
+  cachedSettings = mergeSettings(cachedSettings || DEFAULT_SETTINGS, next);
+
+  if (Object.prototype.hasOwnProperty.call(next, "groupGuardRulesText")) {
+    parseCache.guardRulesKey = null;
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "aiCategoriesText")) {
+    parseCache.aiCategoriesKey = null;
+  }
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
@@ -317,7 +347,13 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 
   const currentWindow = await chrome.windows.getCurrent();
-  await groupTabs(currentWindow.id, "command", null);
+  const result = await runWindowOperation(currentWindow.id, "command", () =>
+    groupTabs(currentWindow.id, "command", null)
+  );
+
+  if (!result.ok) {
+    console.warn(result.error);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -338,7 +374,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (messageType === "GROUP_SIMILAR_TABS") {
     const modeOverride = normalizeGroupingMode(message.mode);
-    groupTabs(windowId, message.source || "message", modeOverride)
+    const source = message.source || "message";
+
+    runWindowOperation(windowId, source, () => groupTabs(windowId, source, modeOverride))
       .then((result) => sendResponse(result))
       .catch((error) =>
         sendResponse({
@@ -351,7 +389,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (messageType === "UNDO_LAST_GROUPING") {
-    restoreLastGrouping(windowId, message.source || "message")
+    const source = message.source || "message";
+
+    runWindowOperation(windowId, source, () => restoreLastGrouping(windowId, source))
       .then((result) => sendResponse(result))
       .catch((error) =>
         sendResponse({
@@ -364,11 +404,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+async function runWindowOperation(windowId, source, operation) {
+  if (windowOperationLocks.has(windowId)) {
+    return {
+      ok: false,
+      source,
+      error: BUSY_OPERATION_ERROR
+    };
+  }
+
+  windowOperationLocks.add(windowId);
+  try {
+    return await operation();
+  } finally {
+    windowOperationLocks.delete(windowId);
+  }
+}
+
 async function groupTabs(windowId, source, modeOverride) {
   const settings = await loadSettings();
   const mode = normalizeGroupingMode(modeOverride || settings.groupingMode) || "ai";
-  const guardRules = parseGroupGuardRules(settings.groupGuardRulesText);
-  const aiCategories = parseAiCategories(settings.aiCategoriesText);
+  const guardRules = getCachedGuardRules(settings.groupGuardRulesText);
+  const aiCategories = getCachedAiCategories(settings.aiCategoriesText);
   const tabs = await chrome.tabs.query({ windowId });
 
   if (tabs.length < 2) {
@@ -390,8 +447,10 @@ async function groupTabs(windowId, source, modeOverride) {
     // Grouping should continue even if snapshot persistence fails.
   }
 
-  const tabIds = tabs.map((tab) => tab.id).filter(Number.isInteger);
-  await ungroupAll(tabIds);
+  const groupedTabIds = tabs
+    .filter((tab) => Number.isInteger(tab.id) && Number.isInteger(tab.groupId) && tab.groupId >= 0)
+    .map((tab) => tab.id);
+  await ungroupAll(groupedTabIds);
 
   const ruleMatches = indexRuleMatchesByTabId(tabs, guardRules);
   const buckets =
@@ -425,7 +484,8 @@ function buildDomainBuckets(tabs, ruleMatches) {
     }
 
     const ruleMatch = ruleMatches.get(tab.id);
-    const category = ruleMatch || buildDomainCategory(tab);
+    const tabMeta = buildTabMeta(tab);
+    const category = ruleMatch || buildDomainCategory(tabMeta);
     pushToBucket(buckets, category, tab.id);
   }
 
@@ -446,8 +506,9 @@ function buildAiBuckets(tabs, ruleMatches, aiCategories, filterOutRuleMatchedTab
       continue;
     }
 
-    const aiCategory = detectAiCategory(tab, aiCategories);
-    const category = aiCategory || buildDomainCategory(tab);
+    const tabMeta = buildTabMeta(tab);
+    const aiCategory = detectAiCategoryFromMeta(tabMeta, aiCategories);
+    const category = aiCategory || buildDomainCategory(tabMeta);
     pushToBucket(buckets, category, tab.id);
   }
 
@@ -455,7 +516,10 @@ function buildAiBuckets(tabs, ruleMatches, aiCategories, filterOutRuleMatchedTab
 }
 
 function detectAiCategory(tab, aiCategories) {
-  const tabMeta = buildTabMeta(tab);
+  return detectAiCategoryFromMeta(buildTabMeta(tab), aiCategories);
+}
+
+function detectAiCategoryFromMeta(tabMeta, aiCategories) {
   if (!tabMeta.corpus) {
     return null;
   }
@@ -491,71 +555,56 @@ function detectAiCategory(tab, aiCategories) {
 function scoreCategory(tabMeta, category) {
   let score = 0;
 
-  for (const hostPattern of category.hostPatterns || []) {
-    if (!hostPattern) {
-      continue;
-    }
-
-    if (matchesHostPattern(tabMeta.host, hostPattern)) {
-      score += hostPattern.startsWith("*.") ? 8 : 10;
-
-      const cleaned = hostPattern.replace(/^\*\./, "");
-      const patternDomain = getRegistrableDomain(cleaned);
-      if (patternDomain && patternDomain === tabMeta.registrableDomain) {
+  for (const hostMatcher of category.hostMatchers || []) {
+    if (matchesHostMatcher(tabMeta.host, hostMatcher)) {
+      score += hostMatcher.matchScore;
+      if (hostMatcher.registrableDomain && hostMatcher.registrableDomain === tabMeta.registrableDomain) {
         score += 3;
       }
     }
   }
 
-  for (const rawKeyword of category.keywords || []) {
-    const keyword = normalizeKeywordToken(rawKeyword);
-    if (!keyword) {
-      continue;
-    }
-
-    if (keyword.startsWith("host:")) {
-      const hostPattern = keyword.slice(5).trim();
-      if (hostPattern && matchesHostPattern(tabMeta.host, hostPattern)) {
-        score += 8;
+  for (const keywordMatcher of category.keywordMatchers || []) {
+    if (keywordMatcher.type === "host") {
+      if (matchesHostMatcher(tabMeta.host, keywordMatcher.hostMatcher)) {
+        score += keywordMatcher.score;
       }
       continue;
     }
 
-    if (keyword.startsWith("title:")) {
-      const titleToken = keyword.slice(6).trim();
-      if (titleToken && includesText(tabMeta.title, titleToken)) {
-        score += 4;
+    if (keywordMatcher.type === "title") {
+      if (matchesTextMatcher(tabMeta.title, keywordMatcher.textMatcher)) {
+        score += keywordMatcher.score;
       }
       continue;
     }
 
-    if (keyword.startsWith("path:")) {
-      const pathToken = keyword.slice(5).trim();
-      if (pathToken && includesText(`${tabMeta.path} ${tabMeta.query}`, pathToken)) {
-        score += 3;
+    if (keywordMatcher.type === "path") {
+      if (matchesTextMatcher(tabMeta.pathQuery, keywordMatcher.textMatcher)) {
+        score += keywordMatcher.score;
       }
       continue;
     }
 
-    score += scoreGenericKeyword(tabMeta, keyword);
+    score += scoreGenericKeyword(tabMeta, keywordMatcher.textMatcher);
   }
 
   return score;
 }
 
-function scoreGenericKeyword(tabMeta, keyword) {
+function scoreGenericKeyword(tabMeta, textMatcher) {
   let keywordScore = 0;
 
-  if (includesText(tabMeta.title, keyword)) {
+  if (matchesTextMatcher(tabMeta.title, textMatcher)) {
     keywordScore = Math.max(keywordScore, 4);
   }
-  if (includesText(tabMeta.host, keyword)) {
+  if (matchesTextMatcher(tabMeta.host, textMatcher)) {
     keywordScore = Math.max(keywordScore, 3);
   }
-  if (includesText(tabMeta.path, keyword) || includesText(tabMeta.query, keyword)) {
+  if (matchesTextMatcher(tabMeta.pathQuery, textMatcher)) {
     keywordScore = Math.max(keywordScore, 3);
   }
-  if (includesText(tabMeta.corpus, keyword)) {
+  if (matchesTextMatcher(tabMeta.corpus, textMatcher)) {
     keywordScore = Math.max(keywordScore, 2);
   }
 
@@ -567,25 +616,23 @@ function buildTabMeta(tab) {
   const host = String(parsed?.hostname || "").toLowerCase();
   const path = String(parsed?.pathname || "").toLowerCase();
   const query = String(parsed?.search || "").toLowerCase();
+  const pathQuery = `${path} ${query}`.trim();
   const title = String(tab.title || "").toLowerCase();
   const registrableDomain = getRegistrableDomain(host);
 
-  const corpus = [host, registrableDomain, path, query, title].filter(Boolean).join(" ").trim();
+  const corpus = [host, registrableDomain, pathQuery, title].filter(Boolean).join(" ").trim();
 
   return {
     host,
-    path,
-    query,
+    pathQuery,
     title,
     registrableDomain,
     corpus
   };
 }
 
-function buildDomainCategory(tab) {
-  const parsed = safeParseUrl(tab.url);
-  const host = String(parsed?.hostname || "").toLowerCase();
-  const registrable = getRegistrableDomain(host);
+function buildDomainCategory(tabMeta) {
+  const registrable = String(tabMeta?.registrableDomain || "");
   const label = registrable || "Unsorted";
 
   return {
@@ -749,6 +796,30 @@ function wildcardToRegex(value) {
   return escapeRegex(String(value || "")).replace(/\\\*/g, ".*");
 }
 
+function getCachedGuardRules(text) {
+  const key = String(text || "");
+  if (parseCache.guardRulesKey === key) {
+    return parseCache.guardRules;
+  }
+
+  const parsedRules = parseGroupGuardRules(key);
+  parseCache.guardRulesKey = key;
+  parseCache.guardRules = parsedRules;
+  return parsedRules;
+}
+
+function getCachedAiCategories(text) {
+  const key = String(text || "");
+  if (parseCache.aiCategoriesKey === key) {
+    return parseCache.aiCategories;
+  }
+
+  const parsedCategories = parseAiCategories(key);
+  parseCache.aiCategoriesKey = key;
+  parseCache.aiCategories = parsedCategories;
+  return parsedCategories;
+}
+
 function parseAiCategories(text) {
   const lines = String(text || "").split(/\r?\n/);
   const customCategories = [];
@@ -800,13 +871,139 @@ function parseAiCategories(text) {
   }
 
   if (!customCategories.length) {
-    return BUILTIN_AI_CATEGORIES;
+    return compileAiCategories(BUILTIN_AI_CATEGORIES);
   }
 
   const customSlugs = new Set(customCategories.map((category) => category.slug));
   const remainingBuiltins = BUILTIN_AI_CATEGORIES.filter((category) => !customSlugs.has(slugify(category.label)));
 
-  return [...customCategories, ...remainingBuiltins];
+  return compileAiCategories([...customCategories, ...remainingBuiltins]);
+}
+
+function compileAiCategories(categories) {
+  const compiled = [];
+
+  for (const category of categories || []) {
+    const normalizedCategory = compileAiCategory(category);
+    if (normalizedCategory) {
+      compiled.push(normalizedCategory);
+    }
+  }
+
+  return compiled;
+}
+
+function compileAiCategory(category) {
+  if (!category || !category.id || !category.label) {
+    return null;
+  }
+
+  const hostMatchers = [];
+  const keywordMatchers = [];
+
+  for (const rawPattern of category.hostPatterns || []) {
+    const score = String(rawPattern || "").trim().startsWith("*.") ? 8 : 10;
+    const hostMatcher = compileHostMatcher(rawPattern, score);
+    if (hostMatcher) {
+      hostMatchers.push(hostMatcher);
+    }
+  }
+
+  for (const rawKeyword of category.keywords || []) {
+    const keyword = normalizeKeywordToken(rawKeyword);
+    if (!keyword) {
+      continue;
+    }
+
+    if (keyword.startsWith("host:") || keyword.startsWith("domain:")) {
+      const hostPattern = keyword.split(":").slice(1).join(":").trim();
+      const hostMatcher = compileHostMatcher(hostPattern, 8);
+      if (hostMatcher) {
+        keywordMatchers.push({
+          type: "host",
+          hostMatcher,
+          score: 8
+        });
+      }
+      continue;
+    }
+
+    if (keyword.startsWith("title:")) {
+      const textMatcher = compileTextMatcher(keyword.slice(6));
+      if (textMatcher) {
+        keywordMatchers.push({
+          type: "title",
+          textMatcher,
+          score: 4
+        });
+      }
+      continue;
+    }
+
+    if (keyword.startsWith("path:")) {
+      const textMatcher = compileTextMatcher(keyword.slice(5));
+      if (textMatcher) {
+        keywordMatchers.push({
+          type: "path",
+          textMatcher,
+          score: 3
+        });
+      }
+      continue;
+    }
+
+    const textMatcher = compileTextMatcher(keyword);
+    if (textMatcher) {
+      keywordMatchers.push({
+        type: "generic",
+        textMatcher
+      });
+    }
+  }
+
+  return {
+    id: category.id,
+    label: category.label,
+    color: normalizeColor(category.color) || pickColorFromSeed(category.label),
+    hostMatchers,
+    keywordMatchers
+  };
+}
+
+function compileHostMatcher(rawPattern, scoreOverride) {
+  const pattern = normalizeKeywordToken(rawPattern);
+  if (!pattern) {
+    return null;
+  }
+
+  const isWildcard = pattern.startsWith("*.");
+  const baseHost = isWildcard ? pattern.slice(2) : pattern;
+  if (!baseHost || baseHost.includes("/") || baseHost.includes("?")) {
+    return null;
+  }
+
+  return {
+    baseHost,
+    matchScore: Number(scoreOverride) || (isWildcard ? 8 : 10),
+    registrableDomain: getRegistrableDomain(baseHost)
+  };
+}
+
+function compileTextMatcher(rawToken) {
+  const token = normalizeKeywordToken(rawToken);
+  if (!token || token.length < 2) {
+    return null;
+  }
+
+  const wordLike = /^[a-z0-9-]+$/.test(token);
+  const useBoundaries = wordLike && token.length <= 4;
+
+  return {
+    token,
+    boundaryRegex: useBoundaries
+      ? new RegExp(`(?:^|[^a-z0-9])${escapeRegex(token)}(?:$|[^a-z0-9])`)
+      : null
+  };
 }
 
 function looksLikeHostToken(token) {
@@ -821,29 +1018,27 @@ function looksLikeHostToken(token) {
   return token.includes(".");
 }
 
-function matchesHostPattern(host, rawPattern) {
+function matchesHostMatcher(host, hostMatcher) {
   const normalizedHost = String(host || "").toLowerCase();
-  const pattern = String(rawPattern || "").trim().toLowerCase();
-
-  if (!normalizedHost || !pattern) {
+  if (!normalizedHost || !hostMatcher?.baseHost) {
     return false;
   }
 
-  if (pattern.startsWith("*.")) {
-    const base = pattern.slice(2);
-    return normalizedHost === base || normalizedHost.endsWith(`.${base}`);
-  }
-
-  return normalizedHost === pattern || normalizedHost.endsWith(`.${pattern}`);
+  const baseHost = hostMatcher.baseHost;
+  return normalizedHost === baseHost || normalizedHost.endsWith(`.${baseHost}`);
 }
 
-function includesText(haystack, needle) {
-  const source = String(haystack || "").toLowerCase();
-  const token = String(needle || "").toLowerCase();
-  if (!source || !token) {
+function matchesTextMatcher(source, textMatcher) {
+  const corpus = String(source || "");
+  if (!corpus || !textMatcher?.token) {
     return false;
   }
-  return source.includes(token);
+
+  if (textMatcher.boundaryRegex) {
+    return textMatcher.boundaryRegex.test(corpus);
+  }
+
+  return corpus.includes(textMatcher.token);
 }
 
 function normalizeKeywordToken(keyword) {
@@ -984,8 +1179,13 @@ async function restoreLastGrouping(windowId, source) {
     };
   }
 
-  await restorePinnedState(snapshotTabs);
-  await restoreTabOrder(snapshotTabs, currentTabs.length);
+  const currentTabById = new Map(
+    currentTabs
+      .filter((tab) => Number.isInteger(tab.id))
+      .map((tab) => [tab.id, tab])
+  );
+  await restorePinnedState(snapshotTabs, currentTabById);
+  await restoreTabOrder(snapshotTabs, currentTabs);
 
   const snapshotTabIds = snapshotTabs.map((tab) => tab.id).filter(Number.isInteger);
   await ungroupAll(snapshotTabIds);
@@ -1053,24 +1253,82 @@ async function restoreLastGrouping(windowId, source) {
   };
 }
 
-async function restorePinnedState(snapshotTabs) {
+async function restorePinnedState(snapshotTabs, currentTabById) {
   for (const tabState of snapshotTabs) {
+    const currentTab = currentTabById.get(tabState.id);
+    if (!currentTab) {
+      continue;
+    }
+
+    const shouldPin = Boolean(tabState.pinned);
+    if (Boolean(currentTab.pinned) === shouldPin) {
+      continue;
+    }
+
     try {
-      await chrome.tabs.update(tabState.id, { pinned: Boolean(tabState.pinned) });
+      await chrome.tabs.update(tabState.id, { pinned: shouldPin });
     } catch (_error) {
       // Ignore tabs that cannot be updated.
     }
   }
 }
 
-async function restoreTabOrder(snapshotTabs, totalTabsInWindow) {
+async function restoreTabOrder(snapshotTabs, currentTabs) {
   const ordered = [...snapshotTabs].sort((a, b) => a.index - b.index);
-  const safeUpperIndex = Math.max(0, Number(totalTabsInWindow || 0) - 1);
+  if (!ordered.length) {
+    return;
+  }
+
+  const orderedCurrentTabs = [...currentTabs]
+    .filter((tab) => Number.isInteger(tab.id))
+    .sort((a, b) => a.index - b.index);
+  const liveOrder = orderedCurrentTabs.map((tab) => tab.id);
+  if (!liveOrder.length) {
+    return;
+  }
+
+  const safeUpperIndex = liveOrder.length - 1;
+  const positionById = new Map(liveOrder.map((tabId, index) => [tabId, index]));
+  const currentIndexById = new Map(orderedCurrentTabs.map((tab) => [tab.id, tab.index]));
+
+  let needsReorder = false;
+  for (const tabState of ordered) {
+    const currentIndex = currentIndexById.get(tabState.id);
+    if (!Number.isInteger(currentIndex)) {
+      continue;
+    }
+    const targetIndex = Math.min(Math.max(0, tabState.index), safeUpperIndex);
+    if (currentIndex !== targetIndex) {
+      needsReorder = true;
+      break;
+    }
+  }
+
+  if (!needsReorder) {
+    return;
+  }
 
   for (const tabState of ordered) {
+    const currentIndex = positionById.get(tabState.id);
+    if (!Number.isInteger(currentIndex)) {
+      continue;
+    }
+
+    const targetIndex = Math.min(Math.max(0, tabState.index), safeUpperIndex);
+    if (currentIndex === targetIndex) {
+      continue;
+    }
+
     try {
-      const targetIndex = Math.min(Math.max(0, tabState.index), safeUpperIndex);
       await chrome.tabs.move(tabState.id, { index: targetIndex });
+
+      liveOrder.splice(currentIndex, 1);
+      liveOrder.splice(targetIndex, 0, tabState.id);
+
+      const start = Math.min(currentIndex, targetIndex);
+      for (let index = start; index < liveOrder.length; index += 1) {
+        positionById.set(liveOrder[index], index);
+      }
     } catch (_error) {
       // Ignore non-movable tabs.
     }
@@ -1102,8 +1360,13 @@ function safeParseUrl(value) {
 }
 
 async function loadSettings() {
+  if (cachedSettings) {
+    return cachedSettings;
+  }
+
   const stored = await chrome.storage.sync.get(DEFAULT_SETTINGS);
-  return mergeSettings(DEFAULT_SETTINGS, stored);
+  cachedSettings = mergeSettings(DEFAULT_SETTINGS, stored);
+  return cachedSettings;
 }
 
 function normalizeGroupingMode(mode) {

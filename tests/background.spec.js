@@ -15,7 +15,14 @@ function createHarness(options = {}) {
     syncStore: { ...(options.syncStore || {}) },
     localStore: { ...(options.localStore || {}) },
     nextGroupId: Number.isInteger(options.nextGroupId) ? options.nextGroupId : 100,
-    localSetThrows: Boolean(options.localSetThrows)
+    localSetThrows: Boolean(options.localSetThrows),
+    metrics: {
+      tabsQueryCalls: 0,
+      tabsUpdateCalls: 0,
+      tabsMoveCalls: 0,
+      tabsUngroupCalls: 0,
+      lastUngroupTabIds: []
+    }
   };
 
   normalizeTabState(state.tabs);
@@ -23,6 +30,7 @@ function createHarness(options = {}) {
 
   const runtimeListeners = [];
   const commandListeners = [];
+  const storageChangeListeners = [];
 
   const chrome = {
     runtime: {
@@ -46,12 +54,28 @@ function createHarness(options = {}) {
       }
     },
     storage: {
+      onChanged: {
+        addListener(listener) {
+          storageChangeListeners.push(listener);
+        }
+      },
       sync: {
         async get(keys) {
           return resolveStoreGet(state.syncStore, keys);
         },
         async set(values) {
-          Object.assign(state.syncStore, values || {});
+          const normalizedValues = values || {};
+          const changes = {};
+
+          for (const [key, newValue] of Object.entries(normalizedValues)) {
+            changes[key] = {
+              oldValue: state.syncStore[key],
+              newValue
+            };
+            state.syncStore[key] = newValue;
+          }
+
+          notifyStorageChanges(storageChangeListeners, changes, "sync");
         }
       },
       local: {
@@ -73,12 +97,14 @@ function createHarness(options = {}) {
     },
     tabs: {
       async query(queryInfo = {}) {
+        state.metrics.tabsQueryCalls += 1;
         return state.tabs
           .filter((tab) => (Number.isInteger(queryInfo.windowId) ? tab.windowId === queryInfo.windowId : true))
           .sort((a, b) => a.index - b.index)
           .map((tab) => ({ ...tab }));
       },
       async update(tabId, updateProperties) {
+        state.metrics.tabsUpdateCalls += 1;
         const tab = findTab(state, tabId);
         if (!tab) {
           throw new Error(`Tab not found: ${tabId}`);
@@ -91,6 +117,7 @@ function createHarness(options = {}) {
         return { ...tab };
       },
       async move(tabId, moveProperties) {
+        state.metrics.tabsMoveCalls += 1;
         const idx = state.tabs.findIndex((tab) => tab.id === tabId);
         if (idx < 0) {
           throw new Error(`Tab not found: ${tabId}`);
@@ -105,7 +132,9 @@ function createHarness(options = {}) {
         return { ...tab };
       },
       async ungroup(tabIds) {
+        state.metrics.tabsUngroupCalls += 1;
         const idSet = new Set(normalizeToNumberArray(tabIds));
+        state.metrics.lastUngroupTabIds.push([...idSet]);
         for (const tab of state.tabs) {
           if (idSet.has(tab.id)) {
             tab.groupId = -1;
@@ -185,6 +214,16 @@ function createHarness(options = {}) {
 
 function cloneArray(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function notifyStorageChanges(listeners, changes, areaName) {
+  if (!listeners.length || !changes || !Object.keys(changes).length) {
+    return;
+  }
+
+  for (const listener of listeners) {
+    listener(changes, areaName);
+  }
 }
 
 function defaultTabs() {
@@ -403,6 +442,65 @@ async function testGroupingContinuesWhenSnapshotSaveFails() {
   assert.equal(state.localStore.lastGroupingSnapshot, undefined, "snapshot should not be persisted when set fails");
 }
 
+async function testGroupingUngroupsOnlyGroupedTabs() {
+  const tabs = [
+    tab(1, 0, "https://github.com/openai/openai-node", "Repo", { groupId: 10 }),
+    tab(2, 1, "https://docs.github.com/en", "Docs", { groupId: -1 }),
+    tab(3, 2, "https://news.ycombinator.com", "HN", { groupId: 11 })
+  ];
+  const groups = [
+    { id: 10, windowId: 1, title: "G1", color: "blue", collapsed: false },
+    { id: 11, windowId: 1, title: "G2", color: "yellow", collapsed: false }
+  ];
+
+  const { context, state } = createHarness({ tabs, groups });
+  const result = await context.groupTabs(1, "test", "domain");
+  assert.equal(result.ok, true, "grouping should succeed");
+  assert.equal(state.metrics.tabsUngroupCalls, 1, "expected a single ungroup request");
+
+  const ungrouped = [...(state.metrics.lastUngroupTabIds[0] || [])].sort((a, b) => a - b);
+  assert.deepEqual(ungrouped, [1, 3], "only previously grouped tabs should be ungrouped");
+}
+
+async function testRestoreSkipsNoopPinAndMoveUpdates() {
+  const tabs = [
+    tab(1, 0, "https://example.com/a", "A", { pinned: false, groupId: -1 }),
+    tab(2, 1, "https://example.com/b", "B", { pinned: false, groupId: -1 }),
+    tab(3, 2, "https://example.com/c", "C", { pinned: true, groupId: -1 })
+  ];
+
+  const { context, chrome, state } = createHarness({ tabs });
+  const before = await chrome.tabs.query({ windowId: 1 });
+  const snapshot = await context.captureWindowSnapshot(1, before);
+  await context.saveLastGroupingSnapshot(snapshot);
+
+  const result = await context.restoreLastGrouping(1, "test");
+  assert.equal(result.ok, true, "restore should succeed");
+  assert.equal(state.metrics.tabsUpdateCalls, 0, "pin updates should be skipped when unchanged");
+  assert.equal(state.metrics.tabsMoveCalls, 0, "tab moves should be skipped when already in order");
+}
+
+async function testWindowOperationLockPreventsConcurrentActions() {
+  const { context } = createHarness();
+
+  let releaseFirst = null;
+  const firstPromise = context.runWindowOperation(1, "test", async () => {
+    await new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    return { ok: true };
+  });
+
+  const blocked = await context.runWindowOperation(1, "test", async () => ({ ok: true }));
+  assert.equal(blocked.ok, false, "second operation should be blocked while first operation is running");
+  assert.match(blocked.error, /already running/i);
+
+  assert.equal(typeof releaseFirst, "function", "first operation release handle should be initialized");
+  releaseFirst();
+  const firstResult = await firstPromise;
+  assert.equal(firstResult.ok, true, "first operation should complete normally");
+}
+
 async function runTest(name, fn) {
   try {
     await fn();
@@ -421,7 +519,10 @@ async function main() {
     ["Custom categories merge with built-ins", testCustomCategoriesMergeWithBuiltins],
     ["Undo restores previous state and preserves unrelated groups", testUndoRestoresPreviousStateAndPreservesUnrelatedGroups],
     ["Undo without snapshot fails cleanly", testUndoWithoutSnapshotFailsCleanly],
-    ["Grouping continues when snapshot save fails", testGroupingContinuesWhenSnapshotSaveFails]
+    ["Grouping continues when snapshot save fails", testGroupingContinuesWhenSnapshotSaveFails],
+    ["Grouping ungroups only previously grouped tabs", testGroupingUngroupsOnlyGroupedTabs],
+    ["Restore skips noop pin and move updates", testRestoreSkipsNoopPinAndMoveUpdates],
+    ["Window operation lock prevents concurrent actions", testWindowOperationLockPreventsConcurrentActions]
   ];
 
   let passed = 0;

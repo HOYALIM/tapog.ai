@@ -16,7 +16,7 @@
 
 - Extension source: `src/`
 - Landing page: `site/`
-- Branding source: `branding/source/`
+- Logo source images: `img/`
 - Web Store docs: `docs/`
 
 ## Load Locally (Chrome)

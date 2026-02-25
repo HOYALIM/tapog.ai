@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="${1:-$ROOT_DIR/branding/source/logo-primary.png}"
+SRC="${1:-$ROOT_DIR/img/tapog2.png}"
 OUT_DIR="$ROOT_DIR/assets/macos/tapog.iconset"
 
 if [[ ! -f "$SRC" ]]; then

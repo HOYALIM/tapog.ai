@@ -13,6 +13,8 @@ const DEFAULT_SETTINGS = {
 let settings = { ...DEFAULT_SETTINGS };
 let armedUntil = 0;
 let toastTimer = null;
+let disarmTimer = null;
+let clickListenerAttached = false;
 
 init();
 
@@ -21,7 +23,6 @@ async function init() {
   settings = mergeSettings(DEFAULT_SETTINGS, stored);
 
   document.addEventListener("keydown", onKeyDown, true);
-  document.addEventListener("click", onClickWhileArmed, true);
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "sync") {
@@ -49,20 +50,22 @@ function onKeyDown(event) {
     return;
   }
 
-  armedUntil = Date.now() + clampTimeout(settings.armTimeoutMs);
+  const armDurationMs = clampTimeout(settings.armTimeoutMs);
+  armForClickGrouping(armDurationMs);
   event.preventDefault();
   event.stopPropagation();
 
-  const seconds = Math.round((armedUntil - Date.now()) / 1000);
+  const seconds = Math.round(armDurationMs / 1000);
   showToast(`tapog.ai armed: click once in ${seconds}s to group tabs`);
 }
 
 function onClickWhileArmed(event) {
   if (Date.now() > armedUntil) {
+    disarmGrouping();
     return;
   }
 
-  armedUntil = 0;
+  disarmGrouping();
   event.preventDefault();
   event.stopImmediatePropagation();
 
@@ -79,6 +82,46 @@ function onClickWhileArmed(event) {
 
     showToast(`tapog.ai: ${response.message}`);
   });
+}
+
+function armForClickGrouping(durationMs) {
+  armedUntil = Date.now() + durationMs;
+  ensureClickListenerAttached(true);
+
+  if (disarmTimer) {
+    clearTimeout(disarmTimer);
+  }
+
+  disarmTimer = setTimeout(() => {
+    if (Date.now() > armedUntil) {
+      disarmGrouping();
+    }
+  }, durationMs + 50);
+}
+
+function disarmGrouping() {
+  armedUntil = 0;
+  ensureClickListenerAttached(false);
+
+  if (!disarmTimer) {
+    return;
+  }
+
+  clearTimeout(disarmTimer);
+  disarmTimer = null;
+}
+
+function ensureClickListenerAttached(shouldAttach) {
+  if (shouldAttach && !clickListenerAttached) {
+    document.addEventListener("click", onClickWhileArmed, true);
+    clickListenerAttached = true;
+    return;
+  }
+
+  if (!shouldAttach && clickListenerAttached) {
+    document.removeEventListener("click", onClickWhileArmed, true);
+    clickListenerAttached = false;
+  }
 }
 
 function matchesTrigger(event, trigger) {
