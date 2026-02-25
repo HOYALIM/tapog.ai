@@ -54,15 +54,9 @@
 
       <section class="panel">
         <h2>Group Guard Rules</h2>
-        <p class="help">
-          One rule per line: <code>Group Name|pattern1,pattern2|color(optional)</code>
-        </p>
-        <p class="help">
-          Pattern format follows Chrome match pattern (plus wildcard fallback).
-        </p>
-        <p class="help">
-          Example: <code>Work|https://*.notion.so/*,https://*.atlassian.net/*|blue</code>
-        </p>
+        <p class="help">One rule per line: <code>Group Name|pattern1,pattern2|color(optional)</code></p>
+        <p class="help">Pattern format follows Chrome match pattern (plus wildcard fallback).</p>
+        <p class="help">Example: <code>Work|https://*.notion.so/*,https://*.atlassian.net/*|blue</code></p>
         <textarea
           id="groupGuardRulesText"
           name="groupGuardRulesText"
@@ -73,15 +67,17 @@
 
       <section class="panel">
         <h2>AI Categories</h2>
+        <p class="help">One category per line: <code>Category Name|token1,token2|color(optional)</code></p>
         <p class="help">
-          One category per line: <code>Category Name|keyword1,keyword2|color(optional)</code>
+          Tip: add domain signals with <code>host:domain.com</code> or <code>domain.com</code>. Custom categories are
+          merged on top of built-in categories.
         </p>
-        <p class="help">Leave empty to use built-in categories.</p>
+        <p class="help">Example: <code>Startup|host:producthunt.com,ycombinator,launch|orange</code></p>
         <textarea
           id="aiCategoriesText"
           name="aiCategoriesText"
           rows="8"
-          placeholder="Startup|ycombinator,techcrunch,producthunt|orange"
+          placeholder="Security|host:cloudflare.com,oauth,incident,response|red"
         ></textarea>
       </section>
 

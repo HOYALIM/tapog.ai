@@ -46,6 +46,11 @@ button {
   color: #0f172a;
 }
 
+.warning {
+  border-color: #fca5a5;
+  color: #9f1239;
+}
+
 .hint {
   margin: 12px 0 0;
   font-size: 12px;

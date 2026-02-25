@@ -22,6 +22,7 @@ rm -rf \
   "$TMP_DIR/extension/.github" \
   "$TMP_DIR/extension/dist" \
   "$TMP_DIR/extension/docs" \
+  "$TMP_DIR/extension/tests" \
   "$TMP_DIR/extension/scripts" \
   "$TMP_DIR/extension/site" \
   "$TMP_DIR/extension/branding" \

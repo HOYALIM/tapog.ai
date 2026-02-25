@@ -1,4 +1,9 @@
 const TAB_GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
+const GROUPING_SNAPSHOT_KEY = "lastGroupingSnapshot";
+const SECOND_LEVEL_DOMAIN_PARTS = new Set(["co", "com", "net", "org", "gov", "ac"]);
+
+const AI_MIN_SCORE = 4;
+const AI_SCORE_MARGIN = 2;
 
 const DEFAULT_SETTINGS = {
   trigger: {
@@ -21,55 +26,282 @@ const BUILTIN_AI_CATEGORIES = [
     id: "ai",
     label: "AI",
     color: "purple",
-    keywords: ["openai", "chatgpt", "claude", "anthropic", "gemini", "perplexity", "midjourney", "stability"]
+    hostPatterns: [
+      "openai.com",
+      "chat.openai.com",
+      "claude.ai",
+      "anthropic.com",
+      "gemini.google.com",
+      "perplexity.ai",
+      "huggingface.co",
+      "replicate.com",
+      "midjourney.com",
+      "poe.com"
+    ],
+    keywords: [
+      "llm",
+      "prompt",
+      "embedding",
+      "inference",
+      "rag",
+      "agent",
+      "fine-tuning",
+      "foundation model"
+    ]
   },
   {
     id: "dev",
     label: "Dev",
     color: "blue",
-    keywords: ["github", "gitlab", "bitbucket", "stackoverflow", "docs", "vercel", "netlify", "npm"]
+    hostPatterns: [
+      "github.com",
+      "gitlab.com",
+      "bitbucket.org",
+      "stackoverflow.com",
+      "dev.to",
+      "npmjs.com",
+      "pypi.org",
+      "docs.rs",
+      "go.dev",
+      "developer.mozilla.org"
+    ],
+    keywords: [
+      "repository",
+      "pull request",
+      "commit",
+      "build",
+      "deploy",
+      "package",
+      "sdk",
+      "api reference",
+      "bug",
+      "issue"
+    ]
+  },
+  {
+    id: "cloud",
+    label: "Cloud",
+    color: "cyan",
+    hostPatterns: [
+      "aws.amazon.com",
+      "console.cloud.google.com",
+      "portal.azure.com",
+      "cloudflare.com",
+      "vercel.com",
+      "netlify.com",
+      "render.com",
+      "railway.app",
+      "digitalocean.com",
+      "fly.io"
+    ],
+    keywords: [
+      "kubernetes",
+      "lambda",
+      "serverless",
+      "container",
+      "dns",
+      "cdn",
+      "hosting",
+      "infrastructure"
+    ]
   },
   {
     id: "work",
     label: "Work",
     color: "orange",
-    keywords: ["notion", "confluence", "jira", "asana", "trello", "figma", "miro", "slack"]
+    hostPatterns: [
+      "notion.so",
+      "atlassian.net",
+      "asana.com",
+      "clickup.com",
+      "monday.com",
+      "airtable.com",
+      "coda.io",
+      "linear.app",
+      "trello.com",
+      "basecamp.com"
+    ],
+    keywords: ["task", "roadmap", "project", "sprint", "backlog", "kanban", "timeline", "planning"]
+  },
+  {
+    id: "docs",
+    label: "Docs",
+    color: "yellow",
+    hostPatterns: [
+      "docs.google.com",
+      "drive.google.com",
+      "confluence",
+      "readthedocs.io",
+      "wikipedia.org",
+      "gitbook.io",
+      "notion.site"
+    ],
+    keywords: ["documentation", "guide", "manual", "spec", "how to", "reference", "checklist", "playbook"]
+  },
+  {
+    id: "design",
+    label: "Design",
+    color: "pink",
+    hostPatterns: [
+      "figma.com",
+      "miro.com",
+      "canva.com",
+      "dribbble.com",
+      "behance.net",
+      "framer.com",
+      "invisionapp.com"
+    ],
+    keywords: ["prototype", "wireframe", "ui", "ux", "design system", "mockup", "component"]
+  },
+  {
+    id: "communication",
+    label: "Comms",
+    color: "green",
+    hostPatterns: [
+      "mail.google.com",
+      "gmail.com",
+      "outlook.live.com",
+      "slack.com",
+      "discord.com",
+      "teams.microsoft.com",
+      "zoom.us"
+    ],
+    keywords: ["inbox", "email", "message", "meeting", "calendar", "thread", "notification", "chat"]
   },
   {
     id: "research",
     label: "Research",
     color: "cyan",
-    keywords: ["arxiv", "scholar", "paper", "journal", "ieee", "acm"]
+    hostPatterns: [
+      "arxiv.org",
+      "scholar.google.com",
+      "paperswithcode.com",
+      "researchgate.net",
+      "pubmed.ncbi.nlm.nih.gov",
+      "openreview.net"
+    ],
+    keywords: ["paper", "journal", "dataset", "benchmark", "method", "citation", "experiment", "study"]
+  },
+  {
+    id: "learning",
+    label: "Learning",
+    color: "orange",
+    hostPatterns: [
+      "coursera.org",
+      "udemy.com",
+      "edx.org",
+      "khanacademy.org",
+      "pluralsight.com",
+      "leetcode.com",
+      "frontendmasters.com"
+    ],
+    keywords: ["course", "tutorial", "lesson", "bootcamp", "practice", "exercise", "training"]
   },
   {
     id: "news",
     label: "News",
     color: "yellow",
-    keywords: ["news", "times", "bbc", "cnn", "post", "hacker news"]
+    hostPatterns: [
+      "nytimes.com",
+      "bbc.com",
+      "cnn.com",
+      "reuters.com",
+      "wsj.com",
+      "theguardian.com",
+      "bloomberg.com",
+      "news.ycombinator.com"
+    ],
+    keywords: ["breaking", "headline", "opinion", "report", "newsletter", "politics", "economy"]
   },
   {
     id: "social",
     label: "Social",
     color: "pink",
-    keywords: ["x.com", "twitter", "instagram", "facebook", "linkedin", "reddit"]
+    hostPatterns: [
+      "x.com",
+      "twitter.com",
+      "instagram.com",
+      "facebook.com",
+      "linkedin.com",
+      "reddit.com",
+      "threads.net",
+      "tiktok.com"
+    ],
+    keywords: ["feed", "post", "comment", "community", "profile", "followers", "trend"]
   },
   {
     id: "video",
     label: "Video",
     color: "red",
-    keywords: ["youtube", "netflix", "twitch", "vimeo"]
+    hostPatterns: [
+      "youtube.com",
+      "youtu.be",
+      "netflix.com",
+      "twitch.tv",
+      "vimeo.com",
+      "disneyplus.com",
+      "primevideo.com"
+    ],
+    keywords: ["watch", "stream", "playlist", "channel", "episode", "trailer", "live"]
   },
   {
     id: "shopping",
     label: "Shopping",
     color: "green",
-    keywords: ["amazon", "coupang", "ebay", "aliexpress", "shopping"]
+    hostPatterns: [
+      "amazon.com",
+      "ebay.com",
+      "aliexpress.com",
+      "etsy.com",
+      "walmart.com",
+      "target.com",
+      "coupang.com"
+    ],
+    keywords: ["buy", "price", "deal", "product", "cart", "checkout", "review"]
   },
   {
     id: "finance",
     label: "Finance",
     color: "grey",
-    keywords: ["bank", "invest", "trading", "coinbase", "finance"]
+    hostPatterns: [
+      "coinbase.com",
+      "binance.com",
+      "upbit.com",
+      "tradingview.com",
+      "investing.com",
+      "finance.yahoo.com",
+      "fidelity.com",
+      "schwab.com"
+    ],
+    keywords: ["stock", "crypto", "portfolio", "market", "trade", "yield", "etf", "budget"]
+  },
+  {
+    id: "marketing",
+    label: "Marketing",
+    color: "orange",
+    hostPatterns: [
+      "producthunt.com",
+      "hubspot.com",
+      "mailchimp.com",
+      "ahrefs.com",
+      "semrush.com",
+      "analytics.google.com"
+    ],
+    keywords: ["seo", "campaign", "growth", "acquisition", "funnel", "conversion", "retention"]
+  },
+  {
+    id: "travel",
+    label: "Travel",
+    color: "blue",
+    hostPatterns: [
+      "maps.google.com",
+      "booking.com",
+      "airbnb.com",
+      "tripadvisor.com",
+      "skyscanner.com",
+      "kayak.com"
+    ],
+    keywords: ["flight", "hotel", "map", "path:/maps", "route", "trip", "reservation", "itinerary"]
   }
 ];
 
@@ -89,7 +321,8 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type !== "GROUP_SIMILAR_TABS") {
+  const messageType = String(message?.type || "");
+  if (!messageType) {
     return;
   }
 
@@ -103,17 +336,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  const modeOverride = normalizeGroupingMode(message.mode);
-  groupTabs(windowId, message.source || "message", modeOverride)
-    .then((result) => sendResponse(result))
-    .catch((error) =>
-      sendResponse({
-        ok: false,
-        error: error?.message || "Unknown error"
-      })
-    );
+  if (messageType === "GROUP_SIMILAR_TABS") {
+    const modeOverride = normalizeGroupingMode(message.mode);
+    groupTabs(windowId, message.source || "message", modeOverride)
+      .then((result) => sendResponse(result))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error?.message || "Unknown error"
+        })
+      );
 
-  return true;
+    return true;
+  }
+
+  if (messageType === "UNDO_LAST_GROUPING") {
+    restoreLastGrouping(windowId, message.source || "message")
+      .then((result) => sendResponse(result))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error?.message || "Unknown error"
+        })
+      );
+
+    return true;
+  }
 });
 
 async function groupTabs(windowId, source, modeOverride) {
@@ -133,6 +381,13 @@ async function groupTabs(windowId, source, modeOverride) {
       groupCount: 0,
       message: "Need at least 2 tabs to group."
     };
+  }
+
+  try {
+    const snapshot = await captureWindowSnapshot(windowId, tabs);
+    await saveLastGroupingSnapshot(snapshot);
+  } catch (_error) {
+    // Grouping should continue even if snapshot persistence fails.
   }
 
   const tabIds = tabs.map((tab) => tab.id).filter(Number.isInteger);
@@ -200,61 +455,131 @@ function buildAiBuckets(tabs, ruleMatches, aiCategories, filterOutRuleMatchedTab
 }
 
 function detectAiCategory(tab, aiCategories) {
-  const corpus = buildCorpus(tab);
-  if (!corpus) {
+  const tabMeta = buildTabMeta(tab);
+  if (!tabMeta.corpus) {
     return null;
   }
 
-  let bestCategory = null;
-  let bestScore = 0;
+  let best = null;
+  let second = null;
 
   for (const category of aiCategories) {
-    const score = scoreCategory(corpus, category.keywords);
-    if (score > bestScore) {
-      bestCategory = category;
-      bestScore = score;
+    const score = scoreCategory(tabMeta, category);
+    if (!best || score > best.score) {
+      second = best;
+      best = { category, score };
+    } else if (!second || score > second.score) {
+      second = { category, score };
     }
   }
 
-  if (!bestCategory || bestScore <= 0) {
+  if (!best || best.score < AI_MIN_SCORE) {
+    return null;
+  }
+
+  if (second && second.score > 0 && best.score - second.score < AI_SCORE_MARGIN && best.score < 11) {
     return null;
   }
 
   return {
-    id: bestCategory.id,
-    label: bestCategory.label,
-    color: bestCategory.color
+    id: best.category.id,
+    label: best.category.label,
+    color: best.category.color
   };
 }
 
-function scoreCategory(corpus, keywords) {
+function scoreCategory(tabMeta, category) {
   let score = 0;
-  for (const rawKeyword of keywords) {
-    const keyword = String(rawKeyword || "").trim().toLowerCase();
+
+  for (const hostPattern of category.hostPatterns || []) {
+    if (!hostPattern) {
+      continue;
+    }
+
+    if (matchesHostPattern(tabMeta.host, hostPattern)) {
+      score += hostPattern.startsWith("*.") ? 8 : 10;
+
+      const cleaned = hostPattern.replace(/^\*\./, "");
+      const patternDomain = getRegistrableDomain(cleaned);
+      if (patternDomain && patternDomain === tabMeta.registrableDomain) {
+        score += 3;
+      }
+    }
+  }
+
+  for (const rawKeyword of category.keywords || []) {
+    const keyword = normalizeKeywordToken(rawKeyword);
     if (!keyword) {
       continue;
     }
 
-    if (corpus.includes(keyword)) {
-      score += keyword.includes(".") || keyword.includes("/") ? 3 : 2;
+    if (keyword.startsWith("host:")) {
+      const hostPattern = keyword.slice(5).trim();
+      if (hostPattern && matchesHostPattern(tabMeta.host, hostPattern)) {
+        score += 8;
+      }
       continue;
     }
 
-    const normalizedKeyword = keyword.replace(/[^a-z0-9]+/g, " ").trim();
-    if (normalizedKeyword && corpus.includes(normalizedKeyword)) {
-      score += 1;
+    if (keyword.startsWith("title:")) {
+      const titleToken = keyword.slice(6).trim();
+      if (titleToken && includesText(tabMeta.title, titleToken)) {
+        score += 4;
+      }
+      continue;
     }
+
+    if (keyword.startsWith("path:")) {
+      const pathToken = keyword.slice(5).trim();
+      if (pathToken && includesText(`${tabMeta.path} ${tabMeta.query}`, pathToken)) {
+        score += 3;
+      }
+      continue;
+    }
+
+    score += scoreGenericKeyword(tabMeta, keyword);
   }
+
   return score;
 }
 
-function buildCorpus(tab) {
-  const title = String(tab.title || "").toLowerCase();
+function scoreGenericKeyword(tabMeta, keyword) {
+  let keywordScore = 0;
+
+  if (includesText(tabMeta.title, keyword)) {
+    keywordScore = Math.max(keywordScore, 4);
+  }
+  if (includesText(tabMeta.host, keyword)) {
+    keywordScore = Math.max(keywordScore, 3);
+  }
+  if (includesText(tabMeta.path, keyword) || includesText(tabMeta.query, keyword)) {
+    keywordScore = Math.max(keywordScore, 3);
+  }
+  if (includesText(tabMeta.corpus, keyword)) {
+    keywordScore = Math.max(keywordScore, 2);
+  }
+
+  return keywordScore;
+}
+
+function buildTabMeta(tab) {
   const parsed = safeParseUrl(tab.url);
   const host = String(parsed?.hostname || "").toLowerCase();
   const path = String(parsed?.pathname || "").toLowerCase();
   const query = String(parsed?.search || "").toLowerCase();
-  return `${host} ${path} ${query} ${title}`.trim();
+  const title = String(tab.title || "").toLowerCase();
+  const registrableDomain = getRegistrableDomain(host);
+
+  const corpus = [host, registrableDomain, path, query, title].filter(Boolean).join(" ").trim();
+
+  return {
+    host,
+    path,
+    query,
+    title,
+    registrableDomain,
+    corpus
+  };
 }
 
 function buildDomainCategory(tab) {
@@ -262,6 +587,7 @@ function buildDomainCategory(tab) {
   const host = String(parsed?.hostname || "").toLowerCase();
   const registrable = getRegistrableDomain(host);
   const label = registrable || "Unsorted";
+
   return {
     id: `domain:${label}`,
     label,
@@ -280,11 +606,10 @@ function getRegistrableDomain(hostname) {
     return clean;
   }
 
-  const secondLevelSet = new Set(["co", "com", "net", "org", "gov", "ac"]);
   if (parts.length >= 3) {
     const top = parts[parts.length - 1];
     const second = parts[parts.length - 2];
-    if (top.length === 2 && secondLevelSet.has(second)) {
+    if (top.length === 2 && SECOND_LEVEL_DOMAIN_PARTS.has(second)) {
       return `${parts[parts.length - 3]}.${second}.${top}`;
     }
   }
@@ -299,6 +624,7 @@ function indexRuleMatchesByTabId(tabs, guardRules) {
     if (!Number.isInteger(tab.id)) {
       continue;
     }
+
     const url = String(tab.url || "");
     const match = findFirstMatchingRule(url, guardRules);
     if (match) {
@@ -323,6 +649,7 @@ function findFirstMatchingRule(url, guardRules) {
       };
     }
   }
+
   return null;
 }
 
@@ -424,7 +751,7 @@ function wildcardToRegex(value) {
 
 function parseAiCategories(text) {
   const lines = String(text || "").split(/\r?\n/);
-  const categories = [];
+  const customCategories = [];
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].trim();
@@ -434,28 +761,93 @@ function parseAiCategories(text) {
 
     const [labelRaw, keywordsRaw, colorRaw] = line.split("|").map((value) => String(value || "").trim());
     const label = labelRaw;
-    const keywords = String(keywordsRaw || "")
+    const tokens = String(keywordsRaw || "")
       .split(",")
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean);
 
-    if (!label || keywords.length === 0) {
+    if (!label || tokens.length === 0) {
       continue;
     }
 
-    categories.push({
+    const hostPatterns = [];
+    const keywords = [];
+
+    for (const token of tokens) {
+      if (token.startsWith("host:") || token.startsWith("domain:")) {
+        const pattern = token.split(":").slice(1).join(":").trim();
+        if (pattern) {
+          hostPatterns.push(pattern);
+        }
+        continue;
+      }
+
+      if (looksLikeHostToken(token)) {
+        hostPatterns.push(token);
+      }
+
+      keywords.push(token);
+    }
+
+    customCategories.push({
       id: `ai-custom:${slugify(label)}:${index}`,
       label,
       color: normalizeColor(colorRaw) || pickColorFromSeed(label),
-      keywords
+      hostPatterns,
+      keywords,
+      slug: slugify(label)
     });
   }
 
-  if (!categories.length) {
+  if (!customCategories.length) {
     return BUILTIN_AI_CATEGORIES;
   }
 
-  return categories;
+  const customSlugs = new Set(customCategories.map((category) => category.slug));
+  const remainingBuiltins = BUILTIN_AI_CATEGORIES.filter((category) => !customSlugs.has(slugify(category.label)));
+
+  return [...customCategories, ...remainingBuiltins];
+}
+
+function looksLikeHostToken(token) {
+  if (!token || token.includes(" ")) {
+    return false;
+  }
+
+  if (token.includes("/") || token.includes("?")) {
+    return false;
+  }
+
+  return token.includes(".");
+}
+
+function matchesHostPattern(host, rawPattern) {
+  const normalizedHost = String(host || "").toLowerCase();
+  const pattern = String(rawPattern || "").trim().toLowerCase();
+
+  if (!normalizedHost || !pattern) {
+    return false;
+  }
+
+  if (pattern.startsWith("*.")) {
+    const base = pattern.slice(2);
+    return normalizedHost === base || normalizedHost.endsWith(`.${base}`);
+  }
+
+  return normalizedHost === pattern || normalizedHost.endsWith(`.${pattern}`);
+}
+
+function includesText(haystack, needle) {
+  const source = String(haystack || "").toLowerCase();
+  const token = String(needle || "").toLowerCase();
+  if (!source || !token) {
+    return false;
+  }
+  return source.includes(token);
+}
+
+function normalizeKeywordToken(keyword) {
+  return String(keyword || "").trim().toLowerCase();
 }
 
 function pushToBucket(buckets, category, tabId) {
@@ -514,6 +906,175 @@ async function createTabGroups(windowId, buckets, groupSinglesAsOthers) {
   }
 
   return { groupedCount, createdGroupCount };
+}
+
+async function captureWindowSnapshot(windowId, existingTabs) {
+  const tabs = Array.isArray(existingTabs) ? existingTabs : await chrome.tabs.query({ windowId });
+
+  let groups = [];
+  try {
+    groups = await chrome.tabGroups.query({ windowId });
+  } catch (_error) {
+    groups = [];
+  }
+
+  return {
+    windowId,
+    capturedAt: Date.now(),
+    tabs: tabs
+      .filter((tab) => Number.isInteger(tab.id))
+      .map((tab) => ({
+        id: tab.id,
+        index: Number.isInteger(tab.index) ? tab.index : 0,
+        pinned: Boolean(tab.pinned),
+        groupId: Number.isInteger(tab.groupId) ? tab.groupId : -1
+      })),
+    groups: groups
+      .filter((group) => Number.isInteger(group.id))
+      .map((group) => ({
+        id: group.id,
+        title: String(group.title || ""),
+        color: normalizeColor(group.color) || "grey",
+        collapsed: Boolean(group.collapsed)
+      }))
+  };
+}
+
+async function saveLastGroupingSnapshot(snapshot) {
+  await chrome.storage.local.set({
+    [GROUPING_SNAPSHOT_KEY]: snapshot
+  });
+}
+
+async function loadLastGroupingSnapshot() {
+  const stored = await chrome.storage.local.get(GROUPING_SNAPSHOT_KEY);
+  return stored?.[GROUPING_SNAPSHOT_KEY] || null;
+}
+
+async function clearLastGroupingSnapshot() {
+  await chrome.storage.local.remove(GROUPING_SNAPSHOT_KEY);
+}
+
+async function restoreLastGrouping(windowId, source) {
+  const snapshot = await loadLastGroupingSnapshot();
+  if (!snapshot || !Array.isArray(snapshot.tabs) || snapshot.windowId !== windowId) {
+    return {
+      ok: false,
+      source,
+      error: "No previous grouping snapshot found for this window."
+    };
+  }
+
+  const currentTabs = await chrome.tabs.query({ windowId });
+  const currentTabIds = new Set(currentTabs.map((tab) => tab.id).filter(Number.isInteger));
+  if (!currentTabIds.size) {
+    return {
+      ok: false,
+      source,
+      error: "No tabs available to restore."
+    };
+  }
+
+  const snapshotTabs = snapshot.tabs.filter((tab) => currentTabIds.has(tab.id));
+  if (!snapshotTabs.length) {
+    return {
+      ok: false,
+      source,
+      error: "Saved snapshot tabs are no longer available."
+    };
+  }
+
+  await restorePinnedState(snapshotTabs);
+  await restoreTabOrder(snapshotTabs, currentTabs.length);
+
+  const snapshotTabIds = snapshotTabs.map((tab) => tab.id).filter(Number.isInteger);
+  await ungroupAll(snapshotTabIds);
+
+  const tabStateByOldGroup = new Map();
+  for (const tabState of [...snapshotTabs].sort((a, b) => a.index - b.index)) {
+    if (!Number.isInteger(tabState.groupId) || tabState.groupId < 0) {
+      continue;
+    }
+
+    if (!tabStateByOldGroup.has(tabState.groupId)) {
+      tabStateByOldGroup.set(tabState.groupId, []);
+    }
+    tabStateByOldGroup.get(tabState.groupId).push(tabState.id);
+  }
+
+  const groupMetaById = new Map(
+    (snapshot.groups || [])
+      .filter((group) => Number.isInteger(group.id))
+      .map((group) => [group.id, group])
+  );
+
+  let restoredTabs = 0;
+  let restoredGroups = 0;
+
+  for (const [oldGroupId, tabIds] of tabStateByOldGroup) {
+    if (!tabIds.length) {
+      continue;
+    }
+
+    try {
+      const newGroupId = await chrome.tabs.group({
+        createProperties: { windowId },
+        tabIds
+      });
+
+      const oldGroupMeta = groupMetaById.get(oldGroupId);
+      if (oldGroupMeta) {
+        await chrome.tabGroups.update(newGroupId, {
+          title: String(oldGroupMeta.title || ""),
+          color: normalizeColor(oldGroupMeta.color) || "grey",
+          collapsed: Boolean(oldGroupMeta.collapsed)
+        });
+      }
+
+      restoredGroups += 1;
+      restoredTabs += tabIds.length;
+    } catch (_error) {
+      // Skip if tabs are no longer groupable and continue.
+    }
+  }
+
+  await clearLastGroupingSnapshot();
+
+  return {
+    ok: true,
+    source,
+    restoredTabs,
+    restoredGroups,
+    totalTabs: currentTabs.length,
+    message:
+      restoredGroups > 0
+        ? `Restored previous state: ${restoredTabs} tabs across ${restoredGroups} groups.`
+        : "Restored previous state: tabs are ungrouped."
+  };
+}
+
+async function restorePinnedState(snapshotTabs) {
+  for (const tabState of snapshotTabs) {
+    try {
+      await chrome.tabs.update(tabState.id, { pinned: Boolean(tabState.pinned) });
+    } catch (_error) {
+      // Ignore tabs that cannot be updated.
+    }
+  }
+}
+
+async function restoreTabOrder(snapshotTabs, totalTabsInWindow) {
+  const ordered = [...snapshotTabs].sort((a, b) => a.index - b.index);
+  const safeUpperIndex = Math.max(0, Number(totalTabsInWindow || 0) - 1);
+
+  for (const tabState of ordered) {
+    try {
+      const targetIndex = Math.min(Math.max(0, tabState.index), safeUpperIndex);
+      await chrome.tabs.move(tabState.id, { index: targetIndex });
+    } catch (_error) {
+      // Ignore non-movable tabs.
+    }
+  }
 }
 
 async function ungroupAll(tabIds) {

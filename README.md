@@ -1,28 +1,30 @@
 # tapog.ai
 
-`tapog.ai`는 Chrome 탭을 `Group by AI` / `Group by Domain`으로 빠르게 묶는 확장 프로그램입니다.
+`tapog.ai` is a Chrome extension that groups tabs quickly with `Group by AI` and `Group by Domain`.
 
 ## Features
 
-- Group by AI: 카테고리 기반 자동 그룹핑
-- Group by Domain: 도메인 기반 결정적 그룹핑
-- Group Guard: 특정 URL 패턴 우선 그룹 처리
-- Custom trigger: 개인 설정 키 + 클릭으로 즉시 실행
-- Local-first: 원격 API 호출 없이 로컬 처리
+- Group by AI: weighted classification (domain + title + URL intent signals)
+- Group by Domain: deterministic grouping by registrable domain
+- Group Guard: prioritize tabs that match your URL rules
+- Expanded built-in taxonomy: AI, Dev, Cloud, Work, Docs, Design, Comms, Research, Learning, News, Social, Video, Shopping, Finance, Marketing, Travel
+- Undo Last Grouping: restore tabs to the layout right before the most recent grouping action
+- Custom trigger: run instantly with your own key + click combo
+- Local-first: no remote API calls, tab data is processed on-device
 
-## Project paths
+## Project Structure
 
 - Extension source: `src/`
 - Landing page: `site/`
 - Branding source: `branding/source/`
 - Web Store docs: `docs/`
 
-## Run / Load
+## Load Locally (Chrome)
 
-1. Chrome에서 `chrome://extensions` 열기
-2. `개발자 모드` ON
-3. `압축해제된 확장 프로그램을 로드`
-4. `/Users/ho/code/tapog.ai` 선택
+1. Open `chrome://extensions`
+2. Turn on `Developer mode`
+3. Click `Load unpacked`
+4. Select `/Users/ho/code/tapog.ai`
 
 ## Package for Web Store
 
@@ -32,3 +34,16 @@ bash scripts/package-webstore.sh
 
 Generated zip:
 - `dist/tapog.ai-0.1.0.zip`
+
+## Tests
+
+```bash
+bash scripts/run-tests.sh
+```
+
+## Inspiration / References
+
+- [Arc Browser](https://arc.net/) (Tidy Tabs UX inspiration)
+- [Side Space](https://sidespace.app/) (Group by AI / Group Guard workflow inspiration)
+
+This project is independently implemented and not affiliated with Arc or Side Space.
