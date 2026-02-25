@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tapog.ai Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="page">
+      <h1>tapog.ai Settings</h1>
+      <p class="desc">
+        Press your trigger combo, then click once anywhere on a page to run Group by AI or Group by Domain.
+      </p>
+
+      <section class="panel">
+        <h2>Trigger Key</h2>
+        <div class="row">
+          <label for="key">Key</label>
+          <input id="key" name="key" type="text" maxlength="20" placeholder="g / Enter / F2" />
+        </div>
+
+        <fieldset class="modifiers">
+          <legend>Modifiers</legend>
+          <label><input id="altKey" type="checkbox" /> Alt</label>
+          <label><input id="ctrlKey" type="checkbox" /> Ctrl</label>
+          <label><input id="metaKey" type="checkbox" /> Command (Mac) / Windows</label>
+          <label><input id="shiftKey" type="checkbox" /> Shift</label>
+        </fieldset>
+      </section>
+
+      <section class="panel">
+        <h2>Grouping</h2>
+        <div class="row">
+          <label for="groupingMode">Grouping mode</label>
+          <select id="groupingMode" name="groupingMode">
+            <option value="ai">Group by AI</option>
+            <option value="domain">Group by Domain</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="armTimeoutMs">Click window (ms)</label>
+          <input id="armTimeoutMs" name="armTimeoutMs" type="number" min="1000" max="10000" step="100" />
+        </div>
+        <label class="checkbox-row">
+          <input id="groupSinglesAsOthers" type="checkbox" />
+          Group remaining single tabs as <strong>Others</strong>
+        </label>
+        <label class="checkbox-row">
+          <input id="filterOutRuleMatchedTabs" type="checkbox" />
+          In AI mode, keep Group Guard matched tabs out of AI regrouping
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>Group Guard Rules</h2>
+        <p class="help">
+          One rule per line: <code>Group Name|pattern1,pattern2|color(optional)</code>
+        </p>
+        <p class="help">
+          Pattern format follows Chrome match pattern (plus wildcard fallback).
+        </p>
+        <p class="help">
+          Example: <code>Work|https://*.notion.so/*,https://*.atlassian.net/*|blue</code>
+        </p>
+        <textarea
+          id="groupGuardRulesText"
+          name="groupGuardRulesText"
+          rows="8"
+          placeholder="Research|https://*.arxiv.org/*,https://scholar.google.com/*|purple"
+        ></textarea>
+      </section>
+
+      <section class="panel">
+        <h2>AI Categories</h2>
+        <p class="help">
+          One category per line: <code>Category Name|keyword1,keyword2|color(optional)</code>
+        </p>
+        <p class="help">Leave empty to use built-in categories.</p>
+        <textarea
+          id="aiCategoriesText"
+          name="aiCategoriesText"
+          rows="8"
+          placeholder="Startup|ycombinator,techcrunch,producthunt|orange"
+        ></textarea>
+      </section>
+
+      <div class="actions">
+        <button id="save" type="button">Save</button>
+        <span id="status"></span>
+      </div>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "tapog.ai",
+  "version": "0.1.0",
+  "description": "Group similar tabs instantly with a custom key + click flow.",
+  "permissions": ["tabs", "tabGroups", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "action": {
+    "default_title": "tapog.ai",
+    "default_popup": "src/popup.html"
+  },
+  "options_page": "src/options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "commands": {
+    "group-similar-tabs": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Group similar tabs in the current window"
+    }
+  }
+}
