@@ -2,7 +2,18 @@
 
 Last updated: February 25, 2026
 
-## 1. Create upload zip
+## 0) Do we need a separate website?
+Short answer: **No, not required for publication.**
+
+- In Chrome Web Store listing info, `Official URL` is marked as **Optional**.
+- You can publish without a product website.
+- A simple website is still recommended for credibility and user trust.
+
+For this project, you can proceed with:
+- No website (publish directly), or
+- GitHub Pages later (recommended)
+
+## 1) Create upload zip
 Run:
 
 ```bash
@@ -15,11 +26,11 @@ Output example:
 dist/tapog.ai-0.1.0.zip
 ```
 
-## 2. Open Chrome Web Store Developer Dashboard
+## 2) Open Chrome Web Store Developer Dashboard
 - URL: https://chrome.google.com/webstore/devconsole
 - Add new item -> upload the generated zip.
 
-## 3. Store listing fields
+## 3) Store listing fields
 Use these values as a starting point.
 
 ### Name
@@ -42,9 +53,9 @@ Built for fast, keyboard-friendly tab management.
 Productivity
 
 ### Language
-English (and add Korean if desired)
+English and Korean
 
-## 4. Privacy and permissions form
+## 4) Privacy and permissions form
 Recommended answers based on current implementation:
 
 - Data sale: No
@@ -52,15 +63,15 @@ Recommended answers based on current implementation:
 - Host permission rationale: Required to detect key+click trigger across pages and classify open tabs.
 - Tabs data handling: Processed locally for grouping logic only.
 
-Privacy policy URL (after push):
+Privacy policy URL:
 - https://raw.githubusercontent.com/HOYALIM/tapog.ai/main/PRIVACY_POLICY.md
 
-## 5. Assets to prepare in dashboard
+## 5) Assets to prepare in dashboard
 - Extension icon: `assets/icons/icon128.png`
-- Screenshots: capture popup, options, grouped tab view (minimum count may vary by listing type)
-- Optional promo images for better store presentation
+- Screenshots: popup, options, grouped tabs view
+- Promotional assets: small promo tile + YouTube video (prepare if dashboard requires them)
 
-## 6. Reviewer notes (paste into notes)
+## 6) Reviewer notes (paste into notes)
 Use this text:
 
 ```text
@@ -75,7 +86,7 @@ How to test:
 No external API is used. Tab metadata is processed locally.
 ```
 
-## 7. Submit
+## 7) Submit
 - Save draft
 - Resolve policy checklist
 - Submit for review
