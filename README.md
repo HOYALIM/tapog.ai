@@ -19,12 +19,15 @@
 - Logo source images: `img/`
 - Web Store docs: `docs/`
 
-## Load Locally (Chrome)
+## Install From GitHub ZIP
 
-1. Open `chrome://extensions`
-2. Turn on `Developer mode`
-3. Click `Load unpacked`
-4. Select `/Users/ho/code/tapog.ai`
+1. Download the latest source ZIP from GitHub:
+   - <https://github.com/HOYALIM/tapog.ai/archive/refs/heads/main.zip>
+2. Unzip the archive.
+3. Open `chrome://extensions`.
+4. Turn on `Developer mode`.
+5. Click `Load unpacked`.
+6. Select the unzipped `tapog.ai-main` folder.
 
 ## Package for Web Store
 
