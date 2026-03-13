@@ -1,33 +1,16 @@
 # Chrome Web Store Publish Guide (tapog.ai)
 
-Last updated: February 25, 2026
+Last updated: March 12, 2026
 
-## 0) Do we need a separate website?
-Short answer: **No, not required for publication.**
+## 1) Prerequisites
 
-- In Chrome Web Store listing info, `Official URL` is marked as optional.
-- You can publish without a product website.
-- A simple website is still recommended for trust and conversion.
+- Chrome Web Store developer account
+- One-time developer registration fee paid in the Chrome Web Store Developer Dashboard
+- Product website (optional but recommended):
+  `https://tapogai.vercel.app`
 
-This repo now includes a landing page at `site/`.
+## 2) Package the extension
 
-## 1) (Optional but recommended) Publish website
-- Source: `site/`
-- GitHub Actions workflow: `.github/workflows/deploy-site.yml`
-- Expected URL: `https://hoyalim.github.io/tapog.ai/`
-
-After first push, enable GitHub Pages in repository settings if prompted.
-
-## 2) Dashboard setup (ready)
-Use: `docs/store/STEP2_DASHBOARD_READY.md`
-
-## 3) Listing content (ready)
-Use: `docs/store/STEP3_LISTING_READY.md`
-
-Extra copy pack:
-- `docs/WEBSTORE_LISTING_COPY.md`
-
-## 4) Create upload zip
 Run:
 
 ```bash
@@ -40,13 +23,41 @@ Output example:
 dist/tapog.ai-0.1.0.zip
 ```
 
-## 5) Privacy and permissions
+The uploaded ZIP must contain `manifest.json` at the root of the archive.
+
+## 3) Dashboard and listing copy
+
+Use:
+
+- `docs/store/STEP2_DASHBOARD_READY.md`
+- `docs/store/STEP3_LISTING_READY.md`
+- `docs/WEBSTORE_LISTING_COPY.md`
+
+## 4) Privacy and product URLs
+
 - Privacy policy URL:
   `https://raw.githubusercontent.com/HOYALIM/tapog.ai/main/PRIVACY_POLICY.md`
+- Product website:
+  `https://tapogai.vercel.app`
 
-## 6) Submit
-- Upload zip in Dev Console
-- Fill listing + privacy sections
-- Attach screenshots/promo assets
-- Add reviewer notes
-- Submit for review
+## 5) Image assets ready for the dashboard
+
+- Screenshot:
+  `docs/store-assets/screenshot-1.png`
+- Small promo tile:
+  `docs/store-assets/small-promo-tile.png`
+- Marquee image:
+  `docs/store-assets/marquee-promo-tile.png`
+- Screenshot size requirement: `1280x800` or `640x400`
+- Small promo tile size requirement: `440x280`
+- Marquee image size requirement: `1400x560`
+
+## 6) Submit for review
+
+Official dashboard flow:
+
+1. Open the Chrome Web Store Developer Dashboard
+2. Click `Add new item`
+3. Upload the ZIP file
+4. Fill out `Store Listing`, `Privacy`, `Distribution`, and `Test instructions` if needed
+5. Click `Submit for review`

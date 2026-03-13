@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1280, initial-scale=1" />
+    <title>tapog.ai Store Screenshot</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 800px;
+        overflow: hidden;
+        background: #05070d;
+      }
+
+      body {
+        position: relative;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .backdrop {
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(circle at 82% 8%, rgba(255, 138, 0, 0.32), transparent 28%),
+          radial-gradient(circle at 12% 88%, rgba(255, 209, 102, 0.2), transparent 30%),
+          linear-gradient(160deg, #05070d 0%, #0b1222 60%, #0d172a 100%);
+      }
+
+      .noise {
+        position: absolute;
+        inset: 0;
+        opacity: 0.12;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.08) 0.5px, transparent 0.5px);
+        background-size: 4px 4px;
+      }
+
+      .hero-copy {
+        position: absolute;
+        left: 92px;
+        top: 86px;
+        max-width: 430px;
+        color: #f8f8f1;
+      }
+
+      .eyebrow {
+        margin: 0 0 16px;
+        font-size: 15px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #ffd166;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 64px;
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+      }
+
+      .sub {
+        margin: 22px 0 0;
+        font-size: 22px;
+        line-height: 1.45;
+        color: #b7bdcd;
+      }
+
+      .chips {
+        margin-top: 28px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .chip {
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: #f8f8f1;
+        font-size: 14px;
+      }
+
+      .popup-shell {
+        position: absolute;
+        right: 138px;
+        top: 92px;
+        width: 300px;
+        height: 272px;
+        border: 0;
+        border-radius: 24px;
+        overflow: hidden;
+        transform: scale(1.64);
+        transform-origin: top right;
+        box-shadow:
+          0 34px 90px rgba(0, 0, 0, 0.48),
+          0 0 0 1px rgba(255, 255, 255, 0.08);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <div class="noise"></div>
+
+    <section class="hero-copy">
+      <p class="eyebrow">Chrome Extension</p>
+      <h1>Group tabs in one action.</h1>
+      <p class="sub">
+        AI grouping, domain grouping, guard rules, and a keyboard-first popup built for fast tab cleanup.
+      </p>
+      <div class="chips">
+        <span class="chip">Group by AI</span>
+        <span class="chip">Group by Domain</span>
+        <span class="chip">Group Guard</span>
+      </div>
+    </section>
+
+    <iframe class="popup-shell" src="screenshot-1-inner.html" title="tapog.ai popup preview"></iframe>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 # Step 3 - Store Listing Ready (tapog.ai)
 
-Updated: February 25, 2026
+Updated: March 13, 2026
 
 ## Product details
 
@@ -41,10 +41,10 @@ No remote API calls. Tab URL/title are processed locally.
 
 ## Graphic assets checklist
 - [x] Store icon 128x128: `assets/icons/icon128.png`
-- [ ] Screenshot 1280x800: at least 1, up to 5
+- [x] Screenshot 1280x800: `docs/store-assets/screenshot-1.png`
 - [ ] YouTube promo video URL
-- [ ] Small promo tile 440x280 (PNG/JPEG)
-- [ ] Marquee promo tile 1400x560 (optional)
+- [x] Small promo tile 440x280 (PNG/JPEG): `docs/store-assets/small-promo-tile.png`
+- [x] Marquee promo tile 1400x560 (optional): `docs/store-assets/marquee-promo-tile.png`
 
 ## Reviewer notes
 ```text

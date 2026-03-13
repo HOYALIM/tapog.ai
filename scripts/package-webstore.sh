@@ -20,17 +20,23 @@ rsync -a "$ROOT_DIR/" "$TMP_DIR/extension/"
 rm -rf \
   "$TMP_DIR/extension/.git" \
   "$TMP_DIR/extension/.github" \
+  "$TMP_DIR/extension/.vercel" \
   "$TMP_DIR/extension/dist" \
   "$TMP_DIR/extension/docs" \
   "$TMP_DIR/extension/tests" \
   "$TMP_DIR/extension/scripts" \
   "$TMP_DIR/extension/site" \
   "$TMP_DIR/extension/branding" \
+  "$TMP_DIR/extension/bin" \
+  "$TMP_DIR/extension/Formula" \
   "$TMP_DIR/extension/img" \
   "$TMP_DIR/extension/assets/macos"
 
 find "$TMP_DIR/extension" -name '.DS_Store' -delete
-rm -f "$TMP_DIR/extension/.gitignore" "$TMP_DIR/extension/README.md"
+rm -f \
+  "$TMP_DIR/extension/.gitignore" \
+  "$TMP_DIR/extension/README.md" \
+  "$TMP_DIR/extension/vercel.json"
 
 (
   cd "$TMP_DIR/extension"
