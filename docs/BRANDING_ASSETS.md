@@ -5,6 +5,7 @@ Updated: February 25, 2026
 ## Source logos (user provided)
 - Primary: `img/tapog2.png`
 - Alternate: `img/tapog.png`
+- Transparent source for extension/web use: `assets/logo-clean.png`
 
 ## Current extension icons
 - `assets/icons/icon16.png`
@@ -19,6 +20,9 @@ Updated: February 25, 2026
 - `assets/icons/icon128.png`
 - `site/assets/logo-primary.png`
 - `site/assets/logo-alt.png`
+
+## Note
+Current extension and site logo assets are generated from the transparent source logo so the mark renders without a black square background.
 
 ## Future macOS app icon note
 When you move to a macOS app build, reuse `img/tapog2.png` as the source image.
