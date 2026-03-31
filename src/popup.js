@@ -1,6 +1,7 @@
 const groupAiButton = document.getElementById("group-ai");
 const groupDomainButton = document.getElementById("group-domain");
 const undoGroupingButton = document.getElementById("undo-grouping");
+const restoreSessionButton = document.getElementById("restore-session");
 const openOptionsButton = document.getElementById("open-options");
 const statusText = document.getElementById("status");
 
@@ -14,6 +15,10 @@ groupDomainButton.addEventListener("click", async () => {
 
 undoGroupingButton.addEventListener("click", async () => {
   await runUndo();
+});
+
+restoreSessionButton.addEventListener("click", async () => {
+  await runRestoreSession();
 });
 
 openOptionsButton.addEventListener("click", () => {
@@ -71,10 +76,36 @@ async function runUndo() {
   }
 }
 
+async function runRestoreSession() {
+  setStatus("Restoring session...");
+  setBusy(true);
+
+  try {
+    const currentWindow = await chrome.windows.getCurrent();
+    const response = await chrome.runtime.sendMessage({
+      type: "RESTORE_SESSION",
+      source: "popup",
+      windowId: currentWindow.id
+    });
+
+    if (!response?.ok) {
+      setStatus(`Failed: ${response?.error || "no session found"}`);
+      return;
+    }
+
+    setStatus(response.message);
+  } catch (error) {
+    setStatus(`Failed: ${error?.message || "unknown error"}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
 function setBusy(isBusy) {
   groupAiButton.disabled = isBusy;
   groupDomainButton.disabled = isBusy;
   undoGroupingButton.disabled = isBusy;
+  restoreSessionButton.disabled = isBusy;
 }
 
 function setStatus(message) {

@@ -1,10 +1,9 @@
 {
   "manifest_version": 3,
   "name": "tapog.ai",
-  "version": "0.1.0",
-  "description": "Group similar tabs instantly with a custom key + click flow.",
+  "version": "1.0.0",
+  "description": "Group tabs by AI or domain with a key+click gesture. Auto-saves and restores your tab groups across browser restarts. Local-first, no API needed.",
   "permissions": ["tabs", "tabGroups", "storage"],
-  "host_permissions": ["<all_urls>"],
   "icons": {
     "16": "assets/icons/icon16.png",
     "32": "assets/icons/icon32.png",
@@ -25,7 +24,7 @@
   "options_page": "src/options.html",
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["src/content.js"],
       "run_at": "document_start"
     }

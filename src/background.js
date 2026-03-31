@@ -1,10 +1,13 @@
 const TAB_GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 const GROUPING_SNAPSHOT_KEY = "lastGroupingSnapshot";
+const SESSION_SNAPSHOT_KEY = "sessionSnapshot";
 const SECOND_LEVEL_DOMAIN_PARTS = new Set(["co", "com", "net", "org", "gov", "ac"]);
 
 const AI_MIN_SCORE = 4;
 const AI_SCORE_MARGIN = 2;
 const BUSY_OPERATION_ERROR = "Another grouping/undo operation is already running for this window.";
+const GROUPING_METRICS_KEY = "groupingMetrics";
+const GROUPING_METRICS_LIMIT = 200;
 
 const DEFAULT_SETTINGS = {
   trigger: {
@@ -19,7 +22,8 @@ const DEFAULT_SETTINGS = {
   groupSinglesAsOthers: true,
   groupGuardRulesText: "",
   aiCategoriesText: "",
-  filterOutRuleMatchedTabs: true
+  filterOutRuleMatchedTabs: true,
+  autoRestoreSession: true
 };
 
 const BUILTIN_AI_CATEGORIES = [
@@ -341,6 +345,41 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
+let sessionSaveTimer = null;
+
+function scheduleSessionSave() {
+  clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(async () => {
+    try {
+      await saveSessionSnapshot();
+    } catch (_error) {
+      // Non-critical: session save failure should not affect normal operation.
+    }
+  }, 2000);
+}
+
+chrome.runtime.onStartup.addListener(async () => {
+  try {
+    const settings = await loadSettings();
+    if (!settings.autoRestoreSession) {
+      return;
+    }
+    const windows = await chrome.windows.getAll({ populate: false, windowTypes: ["normal"] });
+    if (!windows.length) {
+      return;
+    }
+    await restoreSessionSnapshot(windows[0].id);
+  } catch (_error) {
+    // Non-critical: startup restore failure should not block extension load.
+  }
+});
+
+chrome.tabGroups.onCreated.addListener(() => scheduleSessionSave());
+chrome.tabGroups.onUpdated.addListener(() => scheduleSessionSave());
+chrome.tabGroups.onRemoved.addListener(() => scheduleSessionSave());
+chrome.tabs.onGrouped.addListener(() => scheduleSessionSave());
+chrome.tabs.onUngrouped.addListener(() => scheduleSessionSave());
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "group-similar-tabs") {
     return;
@@ -392,6 +431,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const source = message.source || "message";
 
     runWindowOperation(windowId, source, () => restoreLastGrouping(windowId, source))
+      .then((result) => sendResponse(result))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error?.message || "Unknown error"
+        })
+      );
+
+    return true;
+  }
+
+  if (messageType === "RESTORE_SESSION") {
+    const source = message.source || "message";
+
+    runWindowOperation(windowId, source, () => restoreSessionSnapshot(windowId))
       .then((result) => sendResponse(result))
       .catch((error) =>
         sendResponse({
@@ -1414,5 +1468,122 @@ function mergeSettings(defaults, stored) {
       ...defaults.trigger,
       ...(stored.trigger || {})
     }
+  };
+}
+
+async function saveSessionSnapshot() {
+  const windows = await chrome.windows.getAll({ populate: false, windowTypes: ["normal"] });
+  const allGroups = [];
+
+  for (const win of windows) {
+    let groups = [];
+    try {
+      groups = await chrome.tabGroups.query({ windowId: win.id });
+    } catch (_error) {
+      continue;
+    }
+
+    if (!groups.length) {
+      continue;
+    }
+
+    const tabs = await chrome.tabs.query({ windowId: win.id });
+    const tabsByGroupId = new Map();
+    for (const tab of tabs) {
+      if (!Number.isInteger(tab.groupId) || tab.groupId < 0) {
+        continue;
+      }
+      if (!tabsByGroupId.has(tab.groupId)) {
+        tabsByGroupId.set(tab.groupId, []);
+      }
+      const url = String(tab.url || tab.pendingUrl || "").trim();
+      if (url && !url.startsWith("chrome://") && !url.startsWith("chrome-extension://")) {
+        tabsByGroupId.get(tab.groupId).push(url);
+      }
+    }
+
+    for (const group of groups) {
+      const urls = tabsByGroupId.get(group.id) || [];
+      if (!urls.length) {
+        continue;
+      }
+      allGroups.push({
+        title: String(group.title || ""),
+        color: normalizeColor(group.color) || "grey",
+        collapsed: Boolean(group.collapsed),
+        urls
+      });
+    }
+  }
+
+  if (!allGroups.length) {
+    return;
+  }
+
+  await chrome.storage.local.set({
+    [SESSION_SNAPSHOT_KEY]: { savedAt: Date.now(), groups: allGroups }
+  });
+}
+
+async function restoreSessionSnapshot(windowId) {
+  const stored = await chrome.storage.local.get(SESSION_SNAPSHOT_KEY);
+  const snapshot = stored?.[SESSION_SNAPSHOT_KEY];
+
+  if (!snapshot || !Array.isArray(snapshot.groups) || !snapshot.groups.length) {
+    return { ok: false, error: "No saved session found." };
+  }
+
+  const tabs = await chrome.tabs.query({ windowId });
+  if (!tabs.length) {
+    return { ok: false, error: "No tabs available to restore." };
+  }
+
+  const tabByUrl = new Map();
+  for (const tab of tabs) {
+    const url = String(tab.url || tab.pendingUrl || "").trim();
+    if (url && !tabByUrl.has(url)) {
+      tabByUrl.set(url, tab.id);
+    }
+  }
+
+  let restoredGroups = 0;
+  let restoredTabs = 0;
+
+  for (const groupData of snapshot.groups) {
+    const matchedTabIds = [];
+    for (const url of groupData.urls || []) {
+      const tabId = tabByUrl.get(url);
+      if (Number.isInteger(tabId)) {
+        matchedTabIds.push(tabId);
+      }
+    }
+
+    if (matchedTabIds.length < 1) {
+      continue;
+    }
+
+    try {
+      const groupId = await chrome.tabs.group({ createProperties: { windowId }, tabIds: matchedTabIds });
+      await chrome.tabGroups.update(groupId, {
+        title: groupData.title,
+        color: normalizeColor(groupData.color) || "grey",
+        collapsed: Boolean(groupData.collapsed)
+      });
+      restoredGroups += 1;
+      restoredTabs += matchedTabIds.length;
+    } catch (_error) {
+      // Skip groups that can't be created and continue with remaining groups.
+    }
+  }
+
+  if (!restoredGroups) {
+    return { ok: false, error: "No matching tabs found for saved session." };
+  }
+
+  return {
+    ok: true,
+    restoredGroups,
+    restoredTabs,
+    message: `Session restored: ${restoredTabs} tabs across ${restoredGroups} groups.`
   };
 }

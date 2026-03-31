@@ -11,7 +11,8 @@ const DEFAULT_SETTINGS = {
   groupSinglesAsOthers: true,
   groupGuardRulesText: "",
   aiCategoriesText: "",
-  filterOutRuleMatchedTabs: true
+  filterOutRuleMatchedTabs: true,
+  autoRestoreSession: true
 };
 
 const keyInput = document.getElementById("key");
@@ -23,6 +24,7 @@ const groupingModeInput = document.getElementById("groupingMode");
 const timeoutInput = document.getElementById("armTimeoutMs");
 const groupSinglesInput = document.getElementById("groupSinglesAsOthers");
 const filterOutRuleMatchedTabsInput = document.getElementById("filterOutRuleMatchedTabs");
+const autoRestoreSessionInput = document.getElementById("autoRestoreSession");
 const groupGuardRulesTextInput = document.getElementById("groupGuardRulesText");
 const aiCategoriesTextInput = document.getElementById("aiCategoriesText");
 const saveButton = document.getElementById("save");
@@ -56,6 +58,7 @@ saveButton.addEventListener("click", async () => {
     armTimeoutMs: clampTimeout(timeoutInput.value),
     groupSinglesAsOthers: groupSinglesInput.checked,
     filterOutRuleMatchedTabs: filterOutRuleMatchedTabsInput.checked,
+    autoRestoreSession: autoRestoreSessionInput.checked,
     groupGuardRulesText: String(groupGuardRulesTextInput.value || "").trim(),
     aiCategoriesText: String(aiCategoriesTextInput.value || "").trim()
   };
@@ -74,6 +77,7 @@ function render(settings) {
   timeoutInput.value = clampTimeout(settings.armTimeoutMs);
   groupSinglesInput.checked = Boolean(settings.groupSinglesAsOthers);
   filterOutRuleMatchedTabsInput.checked = Boolean(settings.filterOutRuleMatchedTabs);
+  autoRestoreSessionInput.checked = Boolean(settings.autoRestoreSession);
   groupGuardRulesTextInput.value = String(settings.groupGuardRulesText || "");
   aiCategoriesTextInput.value = String(settings.aiCategoriesText || "");
 }
